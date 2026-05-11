@@ -43,7 +43,7 @@ export default function DesignTestPage() {
         >
             <div className="max-w-6xl mx-auto px-8 py-16">
                 <PageHeader
-                    eyebrow="DESIGN SYSTEM · v0.1"
+                    eyebrow="DESIGN SYSTEM · v0.2"
                     title="Sandbox"
                     subtitle="Every atom, molecule, organism in one place. Reference this before inlining anything new."
                     actions={

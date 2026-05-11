@@ -2,15 +2,40 @@
 
 > Take any Next.js + Tailwind project from **"no design system"** to **"calibrated atomic design system that Claude follows"** in one command.
 
-You give Claude a public URL of a site you love. It:
+You give Claude a public URL of a site you love. Claude opens it in a real browser, **looks at the screenshots with its own eyes** (Claude Code's Read tool is multimodal), reads the computed-style dumps alongside, and writes you:
 
-1. Harvests real computed styles, hover screenshots, and runtimes from that site.
-2. Writes a `design.md` populated with the harvested values (not guesses).
-3. Drops `Atoms.tsx` + `Molecules.tsx` + `Organisms.tsx` into your project.
-4. Adds a `/design-test` sandbox so you can see every component live.
-5. Teaches your `CLAUDE.md` how to use the system going forward.
+1. A `design.md` populated with values harvested from what was actually visible — not guesses.
+2. An `Atoms.tsx` + `Molecules.tsx` + `Organisms.tsx` scaffold in your project.
+3. A `/design-test` sandbox so you can eyeball every component live.
+4. A `CLAUDE.md` section that teaches Claude to use the system going forward.
 
-End result: every UI request to Claude in this project ends up consistent with the reference, not with generic AI aesthetic.
+The Forbidden Patterns section in `design.md` is auto-extracted from what the reference site **doesn't** do (no hover:scale, no backdrop-blur, no halo glows, no plain-white h1) — so every future UI request to Claude ends up consistent with that reference, not with generic AI aesthetic.
+
+---
+
+## Why vision-first
+
+The first version of this tool grepped compiled CSS. That works on a fraction of the web (sites that ship semantic CSS tokens, like Vercel landing pages or Linear's marketing site) and silently produces garbage on the rest (Tailwind utility classes hide token values, CSS-in-JS hashes them, Canvas/WebGL sidesteps the DOM entirely).
+
+The fix is to stop treating the harvest as a parsing problem. Claude Code is a multimodal model — when it `Read`s a PNG file, it **sees** the button. So the harvest script dumps small focused screenshots (rest+hover button pairs, individual headings, individual cards, hero crop, nav strip) instead of one giant full-page image. Claude reads those, describes what it sees, and pulls exact numbers from the accompanying JSON dumps.
+
+That makes the skill work on any site whose UI is made of pixels, not just sites that publish their token vocabulary.
+
+---
+
+## Site compatibility
+
+Honest expectations, set before each harvest by the skill itself based on signals from the page:
+
+| Tier | Examples | What works |
+|------|----------|------------|
+| **1 — Semantic CSS / design tokens** | Sites that ship custom-properties or BEM-style classes for their design system | Everything. Tokens, hover deltas, gradient text — all recoverable with high confidence. |
+| **2 — Tailwind / utility-first** | Most modern SaaS landing pages | Computed values are reliable. Token *names* are inferred by Claude looking at prominence — you tell it which CTA is "primary" if it picks wrong. |
+| **3 — CSS-in-JS / hashed classnames** | Stripe, enterprise SaaS with emotion/styled-components | Computed values and visual reasoning still work. Names are invented. No way to follow upstream changes — frozen snapshot. |
+| **4 — Canvas / WebGL-heavy** | Apple, motion-heavy editorial | Static look only. Interactivity isn't in the DOM, so it isn't harvestable. The skill says so honestly and offers an alternative. |
+| **5 — Adversarial / auth-walled** | Private apps, anti-bot pages | Skill refuses with explanation. |
+
+The skill classifies the site in Step 2 and reports the tier + confidence summary before writing files. You can abort if it looks bad.
 
 ---
 
@@ -19,11 +44,11 @@ End result: every UI request to Claude in this project ends up consistent with t
 ```
 design-system-starter/
 ├── README.md                  # this file
-├── SKILL.md                   # instructions for Claude on how to use the bundle
-├── capture.mjs                # Playwright harvester
+├── SKILL.md                   # vision-first workflow Claude follows
+├── capture.mjs                # Playwright harvester (sectional + per-element screenshots)
 ├── package.json               # playwright dep
 ├── commands/
-│   └── design-system-from.md  # slash command — copy into your project's .claude/commands/
+│   └── design-system-from.md  # slash command for Claude Code
 └── templates/
     ├── design.md              # YAML token contract + Forbidden Patterns
     ├── ds/
@@ -33,7 +58,7 @@ design-system-starter/
     │   └── index.ts           # barrel
     ├── design-test/
     │   └── page.tsx           # live sandbox at /design-test
-    └── CLAUDE-section.md      # rules block to append to CLAUDE.md
+    └── CLAUDE-section.md      # rules block appended to CLAUDE.md
 ```
 
 ---
@@ -44,9 +69,9 @@ If you just want to try it once, you don't need to install anything manually. Op
 
 > Clone https://github.com/filotopist/design-system-starter into /tmp/dss, run `npm install` and `npx playwright install chromium` inside it, then read SKILL.md and follow it to harvest `<REFERENCE-SITE-URL>` and bootstrap a design system in this project.
 
-Claude does the clone, the install, the harvest, and the file placement. You review `/design-test` and `design.md`.
+Claude does the clone, the install, the harvest, the visual analysis, and the file placement. You review `/design-test` and `design.md`.
 
-This path is best for **one-off trial** or **demos**. For repeated use across multiple projects, use the durable install below — it skips the clone/install every time.
+For repeated use across multiple projects, use the durable install below — it skips the clone/install every time.
 
 ---
 
@@ -59,7 +84,7 @@ git clone https://github.com/filotopist/design-system-starter ~/tools/design-sys
 cd ~/tools/design-system-starter
 ```
 
-> Path `~/tools/design-system-starter` is the default the slash command looks for. If you put it elsewhere, just tell Claude `"the bundle is at <path>"` when you run the command.
+`~/tools/design-system-starter` is the default path the slash command looks for. If you put it elsewhere, tell Claude `"the bundle is at <path>"` when invoking.
 
 ### 2. Install Playwright + Chromium
 
@@ -68,9 +93,9 @@ npm install
 npx playwright install chromium
 ```
 
-Takes about a minute. Chromium is ~150 MB and lives in `~/.cache/ms-playwright/` — you only download it once on this machine.
+Takes about a minute. Chromium is ~150 MB and lives in `~/.cache/ms-playwright/` — downloaded once on this machine.
 
-### 3. Wire the slash command into Claude Code
+### 3. Wire the slash command
 
 For **each project** where you want `/design-system-from` available:
 
@@ -80,34 +105,30 @@ mkdir -p .claude/commands
 cp ~/tools/design-system-starter/commands/design-system-from.md .claude/commands/
 ```
 
-(Or copy to `~/.claude/commands/` to make it available in every project — your choice.)
-
-Done. Claude Code now knows the `/design-system-from <url>` command.
+Or copy to `~/.claude/commands/` to make it available in every project automatically.
 
 ---
 
-## Use (per-project, ~5 min)
+## Use
 
-In any Next.js + Tailwind project where you've installed the command, open Claude Code and run:
+In any Next.js + Tailwind project where you've installed the command, run inside Claude Code:
 
 ```
 /design-system-from <reference-site-url>
 ```
 
-Pick a public website whose visual style you want your product to feel like. The harvest reads computed styles + screenshots (same as opening DevTools) and translates them into design tokens for your project.
+Pick a public website whose visual style you want your product to feel like. The harvest captures computed styles + focused screenshots (same as opening DevTools and taking screenshots manually), Claude reads them with its own eyes, and translates them into design tokens for your project.
 
-### What Claude will do, in order
+### What Claude does, in order
 
-1. **Locate the bundle** (looks in `~/tools/`, `~/.claude/skills/`, `~/dev/`). Asks if not found.
-2. **Cheap probe**: `curl` the reference page, grep the compiled CSS bundle for colors, gradients, shadows, radii. 30 sec.
-3. **Browser harvest** (`node capture.mjs`): opens the site in Chromium, captures hover states, computed styles, big-text gradient recipes, network runtimes. ~1 min.
-4. **Synthesize**: reads `/tmp/<site>-extract/*.json`, picks out 5–10 concrete observations.
-5. **Place files in your project**:
-   - `design.md` at root (or `frontend/design.md` if you have a frontend subdir) — populated with real harvested values
-   - `app/design-test/ds/{Atoms,Molecules,Organisms,index}.tsx` — starter components
-   - `app/design-test/page.tsx` — live sandbox
-   - `CLAUDE.md` — appended with "Frontend Design System" rules block (created if missing)
-6. **Report**: prints what was harvested, top 3 things to review, where to look at the sandbox.
+1. **Locates the bundle** — checks `~/tools/`, `~/.claude/skills/`, `~/dev/`. Asks if not found.
+2. **Runs the harvest** — `node capture.mjs` opens the reference in Chromium, takes ~15-20 focused screenshots (fold, nav, hero, button rest+hover pairs, headings, cards) and dumps JSON with computed styles + tier-classification signals. ~1-2 min.
+3. **Classifies the site tier** — reads `tier-hints.json`, picks a tier (1-5), reports honest expectations to you.
+4. **Reads screenshots one at a time** — looking at the actual pixels. Describes what it sees in design-token terms. Cross-references with JSON for exact numeric values.
+5. **Auto-extracts Forbidden Patterns** — by observing what the reference notably does NOT do (no hover transforms? no glassmorphism? no plain-white h1?). These become the most powerful part of `design.md`.
+6. **Reports confidence summary** — tells you which tokens are high-confidence, which are inferred, which it skipped because it didn't see them clearly. You confirm before files are written.
+7. **Places files** — `design.md` at project root (or `frontend/design.md`), `ds/` + sandbox under `app/design-test/`, appends `CLAUDE.md` rules block.
+8. **Refines on request** — say "the h1 isn't quite right" and Claude re-reads the relevant screenshot. Normal Claude Code conversation, no special workflow.
 
 ### What you do after
 
@@ -116,21 +137,19 @@ npm run dev
 # open http://localhost:3000/design-test
 ```
 
-You should see a dark, calibrated catalog of every atom + molecule + organism, in the visual style of your reference site.
-
-From here, every future ask to Claude — "build a /pricing page", "add a settings drawer", "redesign the dashboard" — gets executed against this contract.
+You should see a dark, calibrated catalog of every atom + molecule + organism in the style of your reference. From here, every future UI ask — "build a /pricing page", "redesign the dashboard" — gets executed against this contract.
 
 ---
 
-## How the magic works (short version)
+## How it actually works
 
-Three things in combination:
+Three layers in combination:
 
-1. **Real computed styles, not guesses.** Most AI design systems hallucinate token values. `capture.mjs` reads them from the live DOM, including hover states and gradient-text recipes that only show up at runtime.
-2. **`design.md` as the contract.** A single markdown file with YAML tokens + prose recipes + an explicit **Forbidden Patterns** section. Claude reads it on every request.
+1. **Sectional, focused screenshots.** `capture.mjs` doesn't just dump one full-page PNG — it crops out the nav, the hero, each named button at rest and on hover, each major heading, each card-shaped element. Claude reads them selectively. Loading a single 5MB full-page image into a multimodal model context is wasteful; loading a 200KB button screenshot is precise.
+2. **`design.md` as the contract.** A single markdown file with YAML tokens + prose recipes + an auto-extracted Forbidden Patterns section. Claude reads it on every future request.
 3. **Atomic structure + reuse rules.** Components live in `ds/Atoms.tsx` and friends. `CLAUDE.md` teaches Claude to **check `ds/` before inlining new code** and **promote patterns on second use**.
 
-The Forbidden Patterns section is doing more work than people expect. AI knows 100,000 visual patterns — the way you get a specific look is by enumerating what to **not** do (no violet→indigo gradients, no `hover:scale-105`, no backdrop-blur glass, no halo glows). The harvest of the reference site tells you which of those forbidden patterns to add.
+The Forbidden Patterns section is doing more work than people expect. AI knows 100,000 visual patterns — the way you get a specific look is by enumerating what to **not** do. The harvest of the reference site tells the skill which of those forbidden patterns to add automatically.
 
 ---
 
@@ -138,21 +157,21 @@ The Forbidden Patterns section is doing more work than people expect. AI knows 1
 
 ### Update the design system after a fresh harvest
 
-Run the command again with the same or a new URL. Claude will diff the new harvest against current `design.md` and ask before overwriting. (You can also just re-run `capture.mjs` directly and copy values manually — sometimes faster.)
+Run the command again with the same or a new URL. Claude will diff the new harvest against current `design.md` and confirm before overwriting. You can also re-run `capture.mjs` directly and copy values manually — sometimes faster.
 
-### Use the bundle for a project that isn't Next.js
+### Use it on a non-Next.js project
 
-Templates assume Next.js App Router + Tailwind. For Vite + React, Remix, Astro, etc.: ask Claude `"the project uses <stack>, adapt the templates accordingly"`. The harvest itself is stack-agnostic — only the placement of `ds/` files changes.
+Templates assume Next.js App Router + Tailwind. For Vite + React, Remix, Astro: ask Claude `"the project uses <stack>, adapt the templates accordingly"`. The harvest itself is stack-agnostic; only the file placement changes.
 
 ### Customize the templates
 
-The starter templates are a baseline. Once your project's `ds/` evolves past them, **don't re-import** — your project owns the components now. Re-run the command only to refresh `design.md` against a new reference, not to overwrite atoms.
+The starter templates are a baseline. Once your project's `ds/` evolves past them, **don't re-import** — your project owns the components now. Re-run the skill only to refresh `design.md` against a new reference, not to overwrite atoms.
 
 ---
 
 ## Credits
 
-Built by **Ivan Kolle** ([@filotopist](https://github.com/filotopist)). The Playwright harvest pattern, the `design.md` contract format, the Atomic Design rule set (`reuse before reinvent` / `promote on second use`), and the slash-command + SKILL workflow were developed while shipping production UIs with Claude Code.
+Built by **Ivan Kolle** ([@filotopist](https://github.com/filotopist)). The harvest workflow, the `design.md` contract format, the Atomic Design rule set (`reuse before reinvent` / `promote on second use`), and the slash-command + SKILL workflow were developed while shipping production UIs with Claude Code.
 
 Brad Frost's **Atomic Design** is the conceptual underpinning of `ds/`.
 
@@ -170,8 +189,10 @@ MIT — see [LICENSE](./LICENSE). TL;DR: do whatever you want, just keep the cop
 
 **`capture.mjs` hits 60s timeout on a slow site** — pass `TARGET=<url> node capture.mjs` from a fresher network, or edit the `timeout: 60000` in `capture.mjs` to `120000`.
 
-**Slash command not picked up by Claude Code** — verify the file is at `.claude/commands/design-system-from.md` (lowercase, dashes) and restart Claude Code (`/clear` doesn't reload commands).
+**Slash command not picked up by Claude Code** — verify the file is at `.claude/commands/design-system-from.md` (lowercase, dashes) and restart the session.
 
-**Claude can't find the bundle** — tell it explicitly: `"the design-system-starter bundle is cloned at <absolute-path>"`. The slash command looks in `~/tools/`, `~/.claude/skills/`, `~/dev/` by default.
+**Claude can't find the bundle** — tell it explicitly: `"the design-system-starter bundle is cloned at <absolute-path>"`. Default lookup paths: `~/tools/`, `~/.claude/skills/`, `~/dev/`, `/tmp/dss/`.
 
-**Want the bundle as a user-level skill instead of per-project command** — copy `commands/design-system-from.md` to `~/.claude/commands/design-system-from.md`. Then it's available in every project automatically.
+**Skill says "Tier 4, can't reliably harvest"** — that's not a bug, that's the skill being honest. Canvas/WebGL-heavy sites don't expose their interactivity to the DOM. Send Claude a manual screenshot of the section you want and ask it to extract from that.
+
+**Want the skill globally** — copy `commands/design-system-from.md` to `~/.claude/commands/`. Available in every project automatically.

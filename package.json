@@ -1,6 +1,6 @@
 {
   "name": "design-system-starter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Harvest a reference website's visual contract and bootstrap an atomic design system that Claude Code follows.",
   "private": true,
   "type": "module",

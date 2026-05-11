@@ -1,5 +1,5 @@
 ---
-version: 0.1.0
+version: 0.2.0
 name: {{PROJECT_NAME}}
 description: >
   Atomic design system calibrated against {{REFERENCE_URL}} via real-browser
@@ -8,7 +8,7 @@ description: >
   aesthetic — keep it short and concrete.
 ---
 
-# {{PROJECT_NAME}} — Design System v0.1
+# {{PROJECT_NAME}} — Design System v0.2
 
 > **Single source of truth.** Code follows this file, not the other way around.
 > When the design.md value disagrees with what feels right in code — the
