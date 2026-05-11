@@ -38,7 +38,19 @@ design-system-starter/
 
 ---
 
-## Install (one-time, ~3 min)
+## Quick start — zero install
+
+If you just want to try it once, you don't need to install anything manually. Open Claude Code in your Next.js + Tailwind project and paste:
+
+> Clone https://github.com/filotopist/design-system-starter into /tmp/dss, run `npm install` and `npx playwright install chromium` inside it, then read SKILL.md and follow it to harvest `<REFERENCE-SITE-URL>` and bootstrap a design system in this project.
+
+Claude does the clone, the install, the harvest, and the file placement. You review `/design-test` and `design.md`.
+
+This path is best for **one-off trial** or **demos**. For repeated use across multiple projects, use the durable install below — it skips the clone/install every time.
+
+---
+
+## Durable install (one-time, ~3 min)
 
 ### 1. Clone this repo somewhere persistent
 
