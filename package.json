@@ -1,0 +1,14 @@
+{
+  "name": "design-system-starter",
+  "version": "0.1.0",
+  "description": "Harvest a reference website's visual contract and bootstrap an atomic design system that Claude Code follows.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "harvest": "node capture.mjs",
+    "install-chromium": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}
